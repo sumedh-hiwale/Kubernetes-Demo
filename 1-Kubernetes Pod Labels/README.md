@@ -1,4 +1,4 @@
-# 🏷️ Kubernetes Pod Labels.
+# 🏷️ Kubernetes Pod Labels
 
 This demo explains how to **create Pods, add labels, update labels, delete labels, and apply labels to multiple Pods** using `kubectl`.
 
@@ -6,10 +6,10 @@ This demo explains how to **create Pods, add labels, update labels, delete label
 
 ## 🚀 1. Create the First Pod
 
-Create a Pod using the custom NGINX image:
+Create a Pod using the official NGINX image:
 
 ```bash
-kubectl run firstpod --image=coolgourav147/nginx-custom
+kubectl run firstpod --image=nginx:latest
 ```
 
 🔍 Verify the Pod:
@@ -103,7 +103,7 @@ k get pod firstpod --show-labels
 Create a second Pod:
 
 ```bash
-kubectl run secondpod --image=coolgourav147/nginx-custom
+kubectl run secondpod --image=nginx:latest
 ```
 
 🔍 Verify both Pods:
@@ -185,6 +185,7 @@ k get pods --show-labels
 
 **Topic:** Kubernetes Pod Labels
 **Resource:** Pod
+**Image:** `nginx:latest`
 **Tool:** `kubectl`
 **Key Options:** `--show-labels`, `--overwrite`, `--all`
 
