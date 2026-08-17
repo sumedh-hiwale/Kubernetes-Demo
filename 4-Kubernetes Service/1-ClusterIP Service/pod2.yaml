@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myhttpd2
+  labels:
+    class: cka
+    name: sumedh
+spec:
+  containers:
+    - name: httpd
+      image: httpd
+      ports:
+        - containerPort: 80
