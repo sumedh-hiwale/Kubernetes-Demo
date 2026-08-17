@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: secondpod
+  name: secondpod
+spec:
+  containers:
+    - image: nginx:latest
+      name: secondpod
