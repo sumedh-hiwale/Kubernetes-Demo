@@ -1,592 +1,594 @@
-# Kubernetes 3-Node Cluster on AWS EC2
+# ☸️ Kubernetes 3-Node Cluster on AWS EC2
 
-This project demonstrates how to create and configure a 3-node Kubernetes cluster on AWS EC2 using kubeadm.
+> 🚀 A hands-on Kubernetes cluster setup using AWS EC2, kubeadm, containerd, and Calico CNI.
 
-The cluster consists of:
-
-- 1 Kubernetes Control Plane
-- 2 Kubernetes Worker Nodes
-- containerd as the container runtime
-- kubeadm for cluster initialization and node joining
-- kubelet for managing Pods
-- kubectl for interacting with the Kubernetes cluster
-- Calico as the Container Network Interface (CNI)
+This project demonstrates how to build a 3-node Kubernetes cluster on AWS EC2 from scratch.
 
 ---
 
-## 1. AWS EC2 Instance Setup
+## 🏗️ Cluster Architecture
 
-Create three EC2 instances for the Kubernetes cluster.
+                    ☁️ AWS VPC
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+          ▼              ▼              ▼
+   🧠 Control Plane   👷 Worker-1   👷 Worker-2
+      t3.small          t3.small       t3.small
+          │              │              │
+          └──────────────┼──────────────┘
+                         │
+                  ☸️ Kubernetes
+                         │
+                    🌐 Calico CNI
+                         │
+                     🧪 nginx Pod
 
-### Control Plane Instance
+---
 
-- Name: control-plane
+## 🎯 Project Overview
+
+The cluster contains:
+
+- 🧠 1 Control Plane
+- 👷 2 Worker Nodes
+- 📦 containerd as the container runtime
+- 🔧 kubeadm for cluster initialization
+- ⚙️ kubelet for managing Pods
+- 🖥️ kubectl for cluster management
+- 🌐 Calico CNI for Pod networking
+
+---
+
+# ☁️ 1. AWS EC2 Instance Setup
+
+Create three EC2 instances inside the same AWS VPC.
+
+### 🧠 Control Plane
+
+- Name: `control-plane`
 - AMI: Ubuntu Server 24.04 LTS
-- Instance Type: t3.small
+- Instance Type: `t3.small`
 - vCPU: 2
 - Memory: 2 GiB
 - Storage: 30 GiB gp3
-- Key Pair: kucl-key
-- VPC: Same VPC as Worker Nodes
+- Key Pair: `kucl-key`
 - Security Group: Control Plane Security Group
 
-### Worker Node 1
+### 👷 Worker Node 1
 
-- Name: worker-node-1
+- Name: `worker-node-1`
 - AMI: Ubuntu Server 24.04 LTS
-- Instance Type: t3.small
+- Instance Type: `t3.small`
 - vCPU: 2
 - Memory: 2 GiB
 - Storage: 30 GiB gp3
-- Key Pair: kucl-key
-- VPC: Same VPC as Control Plane
+- Key Pair: `kucl-key`
 - Security Group: Worker Node Security Group
 
-### Worker Node 2
+### 👷 Worker Node 2
 
-- Name: worker-node-2
+- Name: `worker-node-2`
 - AMI: Ubuntu Server 24.04 LTS
-- Instance Type: t3.small
+- Instance Type: `t3.small`
 - vCPU: 2
 - Memory: 2 GiB
 - Storage: 30 GiB gp3
-- Key Pair: kucl-key
-- VPC: Same VPC as Control Plane
+- Key Pair: `kucl-key`
 - Security Group: Worker Node Security Group
 
-All three EC2 instances should be inside the same AWS VPC.
-
-### Why t3.small?
-
-t3.micro provides around 1 GiB of memory, which can cause kubeadm init to fail the minimum memory preflight check.
-
-For this Kubernetes lab, t3.small is used.
+> 💡 `t3.small` is used because `t3.micro` has around 1 GiB RAM and may fail Kubernetes memory preflight checks.
 
 ---
 
-## 2. Security Groups
+# 🔐 2. Security Groups
 
-Two Security Groups are used:
-
-- Control Plane Security Group
-- Worker Node Security Group
-
-### Control Plane Security Group
+## 🧠 Control Plane Security Group
 
 Allow:
 
-- SSH — TCP 22 — Source: My IP
-- Kubernetes API Server — TCP 6443 — Source: Worker Node Security Group
+| Type | Protocol | Port | Source |
+|---|---|---|---|
+| SSH | TCP | `22` | My IP |
+| Custom TCP | TCP | `6443` | Worker Node Security Group |
 
-Port 6443 is used by the Kubernetes API Server.
+Port `6443` is used by the Kubernetes API Server.
 
-### Worker Node Security Group
+## 👷 Worker Node Security Group
 
 Allow:
 
-- SSH — TCP 22 — Source: My IP
+| Type | Protocol | Port | Source |
+|---|---|---|---|
+| SSH | TCP | `22` | My IP |
 
 Use the same Worker Node Security Group for both Worker Nodes.
 
-Note: For a new setup, descriptive Security Group names such as k8s-control-plane-sg and k8s-worker-sg are recommended.
-
 ---
 
-## 3. SSH Connection
+# 🔑 3. SSH Connection
 
-Connect to each EC2 instance from a terminal or PowerShell using SSH.
+Connect to the EC2 instances using SSH from a Terminal or PowerShell.
 
-### Control Plane
+### 🧠 Control Plane
 
-ssh -i "kucl-key.pem" ubuntu@<CONTROL_PLANE_PUBLIC_DNS>
+`ssh -i "kucl-key.pem" ubuntu@<CONTROL_PLANE_PUBLIC_DNS>`
 
-### Worker Node 1
+### 👷 Worker Node 1
 
-ssh -i "kucl-key.pem" ubuntu@<WORKER_1_PUBLIC_DNS>
+`ssh -i "kucl-key.pem" ubuntu@<WORKER_1_PUBLIC_DNS>`
 
-### Worker Node 2
+### 👷 Worker Node 2
 
-ssh -i "kucl-key.pem" ubuntu@<WORKER_2_PUBLIC_DNS>
+`ssh -i "kucl-key.pem" ubuntu@<WORKER_2_PUBLIC_DNS>`
 
 Replace the Public DNS with the actual Public DNS of each EC2 instance.
 
-Never upload the .pem private key to GitHub.
+> 🔒 Never upload the `.pem` private key to GitHub.
 
 ---
 
-## 4. Installation Scripts
+# 📁 4. Repository Structure
 
-After creating and connecting to the instances:
+`kubernetes-3-node-cluster-aws/`
 
-- control-plane-install.sh → Control Plane installation
-- worker-node-install.sh → Worker Node installation
+├── 📄 `README.md`
+├── ⚙️ `control-plane-install.sh`
+└── ⚙️ `worker-node-install.sh`
 
-The worker-node-install.sh script is used on both Worker Node 1 and Worker Node 2.
+### Scripts
 
-The installation scripts contain:
+- `control-plane-install.sh` → Control Plane installation
+- `worker-node-install.sh` → Worker Node installation
 
-- Kubernetes prerequisites
+> ♻️ The same `worker-node-install.sh` script is used on both Worker Node 1 and Worker Node 2.
+
+---
+
+# ⚙️ 5. Installation Scripts
+
+## 🧠 Control Plane
+
+Run:
+
+`chmod +x control-plane-install.sh`
+
+`./control-plane-install.sh`
+
+The script installs:
+
+- Required packages
 - Swap configuration
-- containerd installation
+- containerd
 - Kubernetes networking configuration
-- kubeadm installation
-- kubelet installation
-- kubectl installation
+- kubeadm
+- kubelet
+- kubectl
+
+## 👷 Worker Node 1
+
+Run:
+
+`chmod +x worker-node-install.sh`
+
+`./worker-node-install.sh`
+
+## 👷 Worker Node 2
+
+Run the same script:
+
+`chmod +x worker-node-install.sh`
+
+`./worker-node-install.sh`
+
+> ♻️ One Worker Node script is used for both Worker Nodes.
 
 ---
 
-## 5. Run the Installation Scripts
+# 🚀 6. Post-Installation Steps
 
-### Control Plane
+After running the installation scripts, complete the Kubernetes cluster setup.
 
-Connect to the Control Plane and run:
+## Step 1 — Initialize Control Plane
 
-chmod +x control-plane-install.sh
+Run on the Control Plane:
 
-./control-plane-install.sh
+`sudo kubeadm init`
+
+After successful initialization, kubeadm provides the Worker Node join command.
+
+---
+
+## Step 2 — Configure kubectl
+
+Run on the Control Plane:
+
+`mkdir -p $HOME/.kube`
+
+`sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config`
+
+`sudo chown $(id -u):$(id -g) $HOME/.kube/config`
+
+Verify:
+
+`kubectl get nodes`
+
+The Control Plane may initially show `NotReady` until the CNI is installed.
+
+---
+
+## Step 3 — Install Calico CNI
+
+Run on the Control Plane:
+
+`kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.2/manifests/calico.yaml`
+
+Verify:
+
+`kubectl get pods -n kube-system`
+
+Once Calico is running, the Control Plane should become `Ready`.
+
+---
+
+## Step 4 — Generate Worker Join Command
+
+Run on the Control Plane:
+
+`kubeadm token create --print-join-command`
+
+This generates the complete `kubeadm join` command.
+
+Example:
+
+`kubeadm join <CONTROL_PLANE_PRIVATE_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>`
+
+> 🔒 Do not publish the real token or discovery hash in a public GitHub repository.
+
+---
+
+## Step 5 — Join Worker Node 1
+
+Run the generated command on Worker Node 1:
+
+`sudo kubeadm join <CONTROL_PLANE_PRIVATE_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>`
+
+---
+
+## Step 6 — Join Worker Node 2
+
+Run the same generated command on Worker Node 2:
+
+`sudo kubeadm join <CONTROL_PLANE_PRIVATE_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>`
+
+---
+
+## Step 7 — Verify All Nodes
+
+Run on the Control Plane:
+
+`kubectl get nodes`
+
+Expected:
+
+| Node | Status | Role |
+|---|---|---|
+| Control Plane | `Ready` | `control-plane` |
+| Worker Node 1 | `Ready` | `<none>` |
+| Worker Node 2 | `Ready` | `<none>` |
+
+---
+
+# 🏷️ 7. Add Worker Node Labels
+
+Worker Nodes may initially show `<none>` in the `ROLES` column.
 
 ### Worker Node 1
 
-Connect to Worker Node 1 and run:
-
-chmod +x worker-node-install.sh
-
-./worker-node-install.sh
+`kubectl label node worker-1 node-role.kubernetes.io/worker=worker`
 
 ### Worker Node 2
 
-Connect to Worker Node 2 and run:
-
-chmod +x worker-node-install.sh
-
-./worker-node-install.sh
-
-The same worker-node-install.sh script is used for both Worker Nodes.
-
----
-
-## 6. Post-Installation Steps
-
-After running the installation scripts on all three nodes, complete the following steps.
-
-### Step 1: Initialize the Control Plane
-
-Run on the Control Plane:
-
-sudo kubeadm init
-
-After successful initialization, kubeadm will display a Worker Node join command.
-
----
-
-### Step 2: Configure kubectl
-
-Run on the Control Plane:
-
-mkdir -p $HOME/.kube
-
-sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-
-sudo chown $(id -u):$(id -g) $HOME/.kube/config
+`kubectl label node worker-2 node-role.kubernetes.io/worker=worker`
 
 Verify:
 
-kubectl get nodes
-
-At this stage, the Control Plane may show NotReady until the Pod network is installed.
-
----
-
-### Step 3: Install Calico CNI
-
-Run on the Control Plane:
-
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.2/manifests/calico.yaml
-
-Verify:
-
-kubectl get pods -n kube-system
-
----
-
-### Step 4: Generate Worker Node Join Command
-
-Run on the Control Plane:
-
-kubeadm token create --print-join-command
-
-This generates the complete kubeadm join command.
-
-Example:
-
-kubeadm join <CONTROL_PLANE_PRIVATE_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
-
-Do not publish the real token or discovery hash in a public GitHub repository.
-
----
-
-### Step 5: Join Worker Node 1
-
-Run the generated join command on Worker Node 1:
-
-sudo kubeadm join <CONTROL_PLANE_PRIVATE_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
-
-If successful, the Worker Node will join the Kubernetes cluster.
-
----
-
-### Step 6: Join Worker Node 2
-
-Run the same generated join command on Worker Node 2:
-
-sudo kubeadm join <CONTROL_PLANE_PRIVATE_IP>:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
-
-If successful, the Worker Node will join the Kubernetes cluster.
-
----
-
-### Step 7: Verify All Nodes
-
-Run on the Control Plane:
-
-kubectl get nodes
+`kubectl get nodes`
 
 Expected:
 
-NAME               STATUS   ROLES           VERSION
-<control-plane>    Ready    control-plane   v1.37.0
-<worker-1>         Ready    <none>          v1.37.0
-<worker-2>         Ready    <none>          v1.37.0
+| Node | Status | Role |
+|---|---|---|
+| Control Plane | `Ready` | `control-plane` |
+| worker-1 | `Ready` | `worker` |
+| worker-2 | `Ready` | `worker` |
 
-The Worker Nodes are part of the cluster even if their ROLES column shows <none>.
-
----
-
-### Step 8: Add Worker Role Labels
-
-If Worker Nodes show <none> under the ROLES column, add the worker labels.
-
-Run on the Control Plane:
-
-kubectl label node worker-1 node-role.kubernetes.io/worker=worker
-
-kubectl label node worker-2 node-role.kubernetes.io/worker=worker
-
-Verify:
-
-kubectl get nodes
-
-Expected:
-
-NAME               STATUS   ROLES           VERSION
-<control-plane>    Ready    control-plane   v1.37.0
-worker-1           Ready    worker          v1.37.0
-worker-2           Ready    worker          v1.37.0
+> ℹ️ Kubernetes Node names are based on the node hostname. The AWS EC2 Name tag does not automatically become the Kubernetes Node name.
 
 ---
 
-### Step 9: Verify Kubernetes System Pods
+# 🌐 8. Verify Kubernetes System Pods
 
-Run on the Control Plane:
+Run:
 
-kubectl get pods -A
+`kubectl get pods -A`
 
 Important components include:
 
-- etcd
-- kube-apiserver
-- kube-controller-manager
-- kube-scheduler
-- CoreDNS
-- kube-proxy
-- Calico
+- 🗄️ etcd
+- ☸️ kube-apiserver
+- 🎛️ kube-controller-manager
+- 📅 kube-scheduler
+- 🌐 CoreDNS
+- 🔌 kube-proxy
+- 🐯 Calico
 
-The required Pods should eventually show Running.
+Required Pods should eventually show `Running`.
 
 ---
 
-### Step 10: Deploy a Test nginx Pod
+# 🧪 9. Deploy Test nginx Pod
 
-Run on the Control Plane:
+Create an nginx Pod:
 
-kubectl run nginx --image=nginx
+`kubectl run nginx --image=nginx`
 
-Verify:
+Check the Pod:
 
-kubectl get pods
+`kubectl get pods`
 
-Check which node is running the nginx Pod:
+Check where the Pod is running:
 
-kubectl get pods -o wide
+`kubectl get pods -o wide`
 
 Example:
 
-NAME    READY   STATUS    IP                NODE
-nginx   1/1     Running   192.168.x.x       worker-1
+`nginx   1/1   Running   192.168.x.x   worker-1`
 
-This confirms that Kubernetes can successfully schedule and run a Pod on a Worker Node.
+This confirms:
 
----
-
-## 7. Final Cluster Verification
-
-Run on the Control Plane:
-
-kubectl get nodes
-
-kubectl get pods -A
-
-kubectl get pods -o wide
-
-Expected final cluster:
-
-Control Plane → Ready
-Worker Node 1 → Ready
-Worker Node 2 → Ready
-Calico        → Running
-nginx Pod     → Running
+- ✅ Kubernetes Scheduler is working
+- ✅ Worker Nodes are available
+- ✅ containerd is working
+- ✅ Calico networking is working
+- ✅ Pods can run on Worker Nodes
 
 ---
 
-## 8. Troubleshooting
+# 🔍 10. Final Verification
 
-### Insufficient Memory
+Run:
 
-If you see:
+`kubectl get nodes`
 
-[ERROR Mem]: the system RAM is less than the minimum
+`kubectl get pods -A`
 
-Use:
-
-t3.small
-2 vCPU
-2 GiB RAM
-
-instead of t3.micro.
-
----
-
-### containerd Not Running
-
-Check:
-
-sudo systemctl status containerd
-
-Start and enable containerd:
-
-sudo systemctl enable --now containerd
-
----
-
-### Worker Cannot Connect to Control Plane
-
-Test from the Worker Node:
-
-nc -zv <CONTROL_PLANE_PRIVATE_IP> 6443
+`kubectl get pods -o wide`
 
 Expected:
 
-Connection ... 6443 port ... succeeded!
+- 🧠 Control Plane → `Ready`
+- 👷 Worker Node 1 → `Ready`
+- 👷 Worker Node 2 → `Ready`
+- 🌐 Calico → `Running`
+- 🧪 nginx Pod → `Running`
 
-If the connection fails, check:
+---
+
+# 🛠️ 11. Troubleshooting
+
+## ❌ Insufficient Memory
+
+If you see:
+
+`[ERROR Mem]: the system RAM is less than the minimum`
+
+Use:
+
+`t3.small`
+
+with:
+
+- 2 vCPU
+- 2 GiB RAM
+
+instead of `t3.micro`.
+
+---
+
+## ❌ Worker Cannot Connect to Control Plane
+
+Test from the Worker Node:
+
+`nc -zv <CONTROL_PLANE_PRIVATE_IP> 6443`
+
+Expected:
+
+`Connection ... 6443 port ... succeeded!`
+
+If it fails, check:
 
 1. Control Plane Security Group
 2. Worker Node Security Group
 3. VPC networking
 4. Control Plane private IP
-5. Kubernetes API Server status
-
-The Control Plane must allow TCP port 6443 from the Worker Node Security Group.
+5. Kubernetes API Server
 
 ---
 
-### kubeadm Join Error: Existing Configuration
+## ❌ kubeadm Join: Existing Configuration
 
 If you see:
 
-/etc/kubernetes/kubelet.conf already exists
-/etc/kubernetes/pki/ca.crt already exists
-Port 10250 is in use
+`/etc/kubernetes/kubelet.conf already exists`
+
+`/etc/kubernetes/pki/ca.crt already exists`
+
+`Port 10250 is in use`
 
 The Worker Node may contain an old Kubernetes configuration.
 
 Run on the affected Worker Node:
 
-sudo kubeadm reset -f
+`sudo kubeadm reset -f`
 
 Remove old CNI configuration:
 
-sudo rm -rf /etc/cni/net.d
+`sudo rm -rf /etc/cni/net.d`
 
 Restart containerd:
 
-sudo systemctl restart containerd
+`sudo systemctl restart containerd`
 
-Generate a fresh join command from the Control Plane:
+Generate a fresh join command on the Control Plane:
 
-kubeadm token create --print-join-command
+`kubeadm token create --print-join-command`
 
-Run the generated command on the Worker Node.
+Then run the generated command on the Worker Node.
 
-Do not run kubeadm reset -f on the Control Plane unless you intentionally want to reset the cluster.
-
----
-
-### Port 6443 Connection Timeout
-
-If this command hangs or times out on the Worker Node:
-
-nc -zv <CONTROL_PLANE_PRIVATE_IP> 6443
-
-Check:
-
-1. Control Plane Security Group
-2. Worker Node Security Group
-3. VPC networking
-4. Control Plane private IP
-5. Kubernetes API Server status
+> ⚠️ Do not run `kubeadm reset -f` on the Control Plane unless you intentionally want to reset the cluster.
 
 ---
 
-## 9. Useful Kubernetes Commands
+# 📋 12. Useful Kubernetes Commands
 
 ### Get Nodes
 
-kubectl get nodes
+`kubectl get nodes`
 
-### Get Nodes with Detailed Information
+### Get Nodes with Details
 
-kubectl get nodes -o wide
+`kubectl get nodes -o wide`
 
 ### Get All Pods
 
-kubectl get pods -A
+`kubectl get pods -A`
 
 ### Get Pods with Node Information
 
-kubectl get pods -o wide
+`kubectl get pods -o wide`
 
 ### Describe a Node
 
-kubectl describe node <NODE_NAME>
+`kubectl describe node <NODE_NAME>`
 
 ### Check System Pods
 
-kubectl get pods -n kube-system
+`kubectl get pods -n kube-system`
 
 ### Check Node Labels
 
-kubectl get nodes --show-labels
+`kubectl get nodes --show-labels`
 
 ---
 
-## 10. Kubernetes Components
+# 🧩 13. Kubernetes Components
 
 | Component | Purpose |
-|-----------|---------|
-| kubeadm | Initializes the cluster and joins nodes |
-| kubelet | Runs and manages Pods on nodes |
-| kubectl | Command-line tool for Kubernetes |
-| containerd | Container runtime |
-| Calico | Pod networking / CNI |
-| etcd | Stores Kubernetes cluster state |
-| kube-apiserver | Kubernetes API |
-| kube-scheduler | Schedules Pods to nodes |
-| kube-controller-manager | Runs Kubernetes controllers |
-| CoreDNS | Provides cluster DNS |
-| kube-proxy | Handles Kubernetes Service networking |
+|---|---|
+| `kubeadm` | Initializes and joins Kubernetes nodes |
+| `kubelet` | Runs and manages Pods |
+| `kubectl` | Command-line tool for Kubernetes |
+| `containerd` | Container runtime |
+| `Calico` | Kubernetes Pod networking |
+| `etcd` | Stores Kubernetes cluster state |
+| `kube-apiserver` | Kubernetes API |
+| `kube-scheduler` | Schedules Pods |
+| `kube-controller-manager` | Runs Kubernetes controllers |
+| `CoreDNS` | Provides cluster DNS |
+| `kube-proxy` | Handles Service networking |
 
 ---
 
-## 11. Final Architecture
+# 🏁 14. Final Cluster
 
-                         Kubernetes Cluster
-                                |
-              +-----------------+-----------------+
-              |                 |                 |
-              |                 |                 |
-       Control Plane        Worker Node 1      Worker Node 2
-              |                 |                 |
-         kube-apiserver       kubelet           kubelet
-         kube-scheduler       containerd        containerd
-         controller-manager
-         etcd
-              |
-           kubectl
-              |
-              +-------------------+
-                                  |
-                              Calico CNI
-                                  |
-                              nginx Pod
-                                  |
-                         Worker Node 1 / 2
+The completed cluster contains:
+
+- 🧠 1 Control Plane
+- 👷 2 Worker Nodes
+- 📦 containerd
+- 🔧 kubeadm
+- ⚙️ kubelet
+- 🖥️ kubectl
+- 🌐 Calico CNI
+- 🧪 nginx test Pod
+
+### Final Status
+
+- 🧠 Control Plane → `Ready` ✅
+- 👷 Worker Node 1 → `Ready` ✅
+- 👷 Worker Node 2 → `Ready` ✅
+- 🌐 Calico → `Running` ✅
+- 🧪 nginx Pod → `Running` ✅
 
 ---
 
-## 12. Security Notes
+# 🔒 15. Security Notes
 
 Never commit sensitive information to GitHub.
 
 Do NOT upload:
 
-- .pem private keys
-- AWS Access Keys
-- AWS Secret Keys
-- Private Keys
-- Kubeconfig files
-- Real kubeadm tokens
-- Passwords
-- Kubernetes Secrets
+- 🔑 `.pem` private keys
+- 🔑 AWS Access Keys
+- 🔑 AWS Secret Keys
+- 🔐 Private Keys
+- 🔐 Kubeconfig files
+- 🔐 Real kubeadm tokens
+- 🔐 Passwords
+- 🔐 Kubernetes Secrets
 
-Recommended .gitignore:
+Recommended `.gitignore`:
 
-*.pem
-*.key
-.env
-kubeconfig
+`*.pem`
+
+`*.key`
+
+`.env`
+
+`kubeconfig`
 
 ---
 
-## 13. Cleanup
+# 🧹 16. Cleanup
 
-When the lab is no longer required, stop or terminate the EC2 instances.
+When the lab is no longer required:
 
-For temporary practice:
+### Temporary Practice
 
-Stop EC2 instances
+Stop the EC2 instances.
 
-For a permanently finished lab:
+### Permanent Cleanup
 
-Terminate EC2 instances
+Terminate the EC2 instances.
 
-Also check for unused AWS resources such as:
+Also check for unused AWS resources:
 
-- EBS volumes
+- EBS Volumes
 - Elastic IPs
 - Load Balancers
 - Other AWS resources
 
-Stopping EC2 instances does not necessarily eliminate all AWS charges. EBS storage and other resources may continue to incur charges.
+> 💰 Stopping EC2 instances does not necessarily eliminate all AWS charges. EBS storage and other resources may continue to incur charges.
 
 ---
 
-## 14. Technologies Used
+# 🛠️ 17. Technologies Used
 
-- AWS EC2
-- Ubuntu Server 24.04 LTS
-- Kubernetes v1.37.0
-- kubeadm
-- kubelet
-- kubectl
-- containerd
-- Calico CNI
+- ☁️ AWS EC2
+- 🐧 Ubuntu Server 24.04 LTS
+- ☸️ Kubernetes v1.37.0
+- 🔧 kubeadm
+- ⚙️ kubelet
+- 🖥️ kubectl
+- 📦 containerd
+- 🌐 Calico CNI
 
 ---
 
-## 15. Learning Objectives
+# 🎯 18. Learning Objectives
 
-This project provides hands-on experience with:
+Through this project, you will gain hands-on experience with:
 
 - Kubernetes cluster architecture
 - Control Plane and Worker Nodes
@@ -600,3 +602,30 @@ This project provides hands-on experience with:
 - Kubernetes troubleshooting
 - AWS EC2 networking
 - AWS Security Groups
+
+---
+
+# ⭐ Project Status
+
+- ✅ AWS EC2 Instances Created
+- ✅ Security Groups Configured
+- ✅ Kubernetes Components Installed
+- ✅ Control Plane Initialized
+- ✅ Calico CNI Installed
+- ✅ Worker Node 1 Joined
+- ✅ Worker Node 2 Joined
+- ✅ Worker Nodes Labeled
+- ✅ nginx Pod Deployed
+- ✅ 3-Node Kubernetes Cluster Ready
+
+---
+
+## 👨‍💻 Project Structure
+
+`kubernetes-3-node-cluster-aws/`
+
+├── 📄 `README.md`
+├── ⚙️ `control-plane-install.sh`
+└── ⚙️ `worker-node-install.sh`
+
+> 🚀 Built as a hands-on Kubernetes learning project using AWS EC2 and kubeadm.
