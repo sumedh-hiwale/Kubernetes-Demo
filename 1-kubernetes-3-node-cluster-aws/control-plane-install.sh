@@ -3,24 +3,20 @@
 set -e
 
 echo "=========================================="
-echo " Kubernetes Control Plane Installation"
+echo " Kubernetes Control Plane Setup"
 echo "=========================================="
 
-# 1. Update system packages
-echo "[1/8] Updating system packages..."
+# Update system
 sudo apt-get update
 
-# 2. Install required packages
-echo "[2/8] Installing required packages..."
+# Install required packages
 sudo apt-get install -y apt-transport-https ca-certificates curl gpg
 
-# 3. Disable swap
-echo "[3/8] Disabling swap..."
+# Disable swap
 sudo swapoff -a
 sudo sed -i '/ swap / s/^/#/' /etc/fstab
 
-# 4. Install containerd
-echo "[4/8] Installing containerd..."
+# Install containerd
 sudo apt-get install -y containerd
 
 sudo mkdir -p /etc/containerd
@@ -32,8 +28,7 @@ sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/conf
 sudo systemctl restart containerd
 sudo systemctl enable containerd
 
-# 5. Configure kernel modules
-echo "[5/8] Configuring kernel modules..."
+# Configure kernel modules
 sudo modprobe overlay
 sudo modprobe br_netfilter
 
@@ -45,8 +40,7 @@ EOF
 
 sudo sysctl --system
 
-# 6. Add Kubernetes repository
-echo "[6/8] Adding Kubernetes repository..."
+# Add Kubernetes repository
 sudo mkdir -p -m 755 /etc/apt/keyrings
 
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.37/deb/Release.key \
@@ -58,24 +52,35 @@ echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.
 
 sudo apt-get update
 
-# 7. Install Kubernetes components
-echo "[7/8] Installing kubeadm, kubelet and kubectl..."
+# Install Kubernetes components
 sudo apt-get install -y kubelet kubeadm kubectl
 
 sudo apt-mark hold kubelet kubeadm kubectl
 
-# 8. Verify installation
-echo "[8/8] Verifying Kubernetes installation..."
+# Initialize Kubernetes Control Plane
+sudo kubeadm init
 
-kubeadm version
-kubelet --version
-kubectl version --client
+# Configure kubectl
+mkdir -p $HOME/.kube
+
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# Install Calico CNI
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.2/manifests/calico.yaml
 
 echo ""
 echo "=========================================="
-echo " Control Plane installation completed!"
+echo " Control Plane Setup Completed!"
 echo "=========================================="
 echo ""
-echo "Next step:"
-echo "Run: sudo kubeadm init"
+echo "Check cluster:"
+echo "kubectl get nodes"
+echo ""
+echo "Check system Pods:"
+echo "kubectl get pods -A"
+echo ""
+echo "Generate Worker join command:"
+echo "kubeadm token create --print-join-command"
 echo ""
